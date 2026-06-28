@@ -1,45 +1,54 @@
 /* ===== Avatar Gallery — адаптируется под тему SillyTavern ===== */
 
-#ag-modal, #agm-modal {
+#ag-modal, #agm-modal, #ag-settings {
     --ag-text: var(--SmartThemeBodyColor, #e8e8e8);
-    --ag-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.18));
+    --ag-border: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16));
     --ag-panel: var(--SmartThemeBlurTintColor, rgba(20, 20, 28, 0.92));
     --ag-accent: var(--SmartThemeQuoteColor, var(--SmartThemeEmColor, #6c8cff));
     --ag-shadow: var(--SmartThemeShadowColor, rgba(0, 0, 0, 0.6));
-    --ag-radius: 14px;
+    --ag-radius: 16px;
+    --ag-line: color-mix(in srgb, var(--ag-text) 12%, transparent);
+    --ag-soft: color-mix(in srgb, var(--ag-text) 6%, transparent);
+    --ag-softer: color-mix(in srgb, var(--ag-text) 4%, transparent);
 }
 
 /* ── Значок-оверлей на аватарке ── */
 .ag-ov {
     position: absolute;
-    right: 3px;
-    bottom: 3px;
+    right: 4px;
+    bottom: 4px;
     z-index: 6;
-    width: 22px;
-    height: 22px;
+    width: 23px;
+    height: 23px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 7px;
+    border-radius: 8px;
     font-size: 11px;
     line-height: 1;
-    color: var(--SmartThemeBodyColor, #fff);
-    background: color-mix(in srgb, var(--SmartThemeBlurTintColor, #111) 78%, transparent);
-    border: 1px solid color-mix(in srgb, var(--SmartThemeQuoteColor, #6c8cff) 60%, transparent);
+    color: #fff;
+    background:
+        linear-gradient(145deg,
+            color-mix(in srgb, var(--SmartThemeQuoteColor, #6c8cff) 75%, transparent),
+            color-mix(in srgb, var(--SmartThemeQuoteColor, #6c8cff) 45%, var(--SmartThemeBlurTintColor, #111)));
+    border: 1px solid color-mix(in srgb, #fff 35%, transparent);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--SmartThemeShadowColor, #000) 55%, transparent);
     backdrop-filter: blur(4px);
     cursor: pointer;
-    opacity: 0.55;
-    transition: opacity .15s, background .15s, transform .1s;
+    opacity: 0.78;
+    transform: translateZ(0);
+    transition: opacity .16s, box-shadow .16s, transform .14s cubic-bezier(.34, 1.4, .5, 1);
 }
 .ag-ov:hover {
     opacity: 1;
-    background: color-mix(in srgb, var(--SmartThemeQuoteColor, #6c8cff) 60%, var(--SmartThemeBlurTintColor, #111));
-    transform: scale(1.08);
+    transform: scale(1.12) rotate(-3deg);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--SmartThemeQuoteColor, #6c8cff) 55%, transparent);
 }
-.ag-ov i { pointer-events: none; }
+.ag-ov:active { transform: scale(.96); }
+.ag-ov i { pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .35)); }
 /* в сообщениях и списке персонажей — показываем только при наведении на аватарку */
-.ag-ov.hoveronly { opacity: 0; }
-.avatar:hover > .ag-ov.hoveronly, .mesAvatarWrapper:hover .ag-ov.hoveronly, .ag-ov.hoveronly:hover { opacity: 1; }
+.ag-ov.hoveronly { opacity: 0; pointer-events: none; transform: scale(.85); }
+.avatar:hover > .ag-ov.hoveronly, .mesAvatarWrapper:hover .ag-ov.hoveronly, .ag-ov.hoveronly:hover { opacity: 1; pointer-events: auto; transform: scale(1); }
 
 /* ── Бэкдроп ── */
 #ag-modal, #agm-modal {
@@ -48,172 +57,324 @@
     inset: 0;
     align-items: center;
     justify-content: center;
-    background: color-mix(in srgb, var(--SmartThemeShadowColor, #000) 78%, transparent);
-    backdrop-filter: blur(6px);
+    padding: 20px;
+    background: color-mix(in srgb, var(--SmartThemeShadowColor, #000) 76%, transparent);
+    backdrop-filter: blur(7px);
     font-family: var(--mainFontFamily, inherit);
     font-size: var(--mainFontSize, 14px);
     color: var(--ag-text);
 }
 #agm-modal { z-index: 100000; }
 #ag-modal { z-index: 100001; }
-#ag-modal.open, #agm-modal.open { display: flex; animation: ag-fade .16s ease; }
+#ag-modal.open, #agm-modal.open { display: flex; animation: ag-fade .18s ease; }
 @keyframes ag-fade { from { opacity: 0 } to { opacity: 1 } }
 
 /* ── Панель ── */
 .ag-panel {
+    position: relative;
     width: min(460px, 94vw);
     max-height: 92vh;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px 18px 14px;
+    gap: 14px;
+    padding: 18px 20px 16px;
     border-radius: var(--ag-radius);
     color: var(--ag-text);
     background: var(--ag-panel);
     border: 1px solid var(--ag-border);
-    box-shadow: 0 24px 60px var(--ag-shadow), inset 0 0 0 1px color-mix(in srgb, var(--ag-text) 6%, transparent);
+    box-shadow:
+        0 28px 70px var(--ag-shadow),
+        0 2px 10px color-mix(in srgb, var(--ag-shadow) 50%, transparent),
+        inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent);
     backdrop-filter: blur(calc(var(--SmartThemeBlurStrength, 10) * 1px));
-    animation: ag-pop .2s cubic-bezier(.34, 1.2, .64, 1);
+    animation: ag-pop .22s cubic-bezier(.34, 1.18, .64, 1);
 }
-@keyframes ag-pop { from { transform: translateY(14px) scale(.98); opacity: 0 } to { transform: none; opacity: 1 } }
+/* акцентная полоса сверху */
+.ag-panel::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 3px;
+    border-radius: var(--ag-radius) var(--ag-radius) 0 0;
+    background: linear-gradient(90deg,
+        transparent,
+        color-mix(in srgb, var(--ag-accent) 75%, transparent),
+        transparent);
+    opacity: .8;
+}
+.ag-panel::-webkit-scrollbar { width: 9px; }
+.ag-panel::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ag-text) 18%, transparent); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
+@keyframes ag-pop { from { transform: translateY(16px) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }
+
+/* ── Иконка-чип ── */
+.ag-ic {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; flex-shrink: 0;
+    border-radius: 9px; font-size: .9em;
+    color: var(--ag-accent);
+    background: color-mix(in srgb, var(--ag-accent) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ag-accent) 28%, transparent);
+}
 
 /* ── Шапка ── */
-.ag-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.ag-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1em; min-width: 0; }
-.ag-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ag-title i { color: var(--ag-accent); }
+.ag-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ag-title { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 1.02em; min-width: 0; }
+.ag-title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ag-close {
-    flex-shrink: 0; width: 30px; height: 30px;
+    flex-shrink: 0; width: 32px; height: 32px;
     display: flex; align-items: center; justify-content: center;
-    border: none; border-radius: 8px;
-    background: color-mix(in srgb, var(--ag-text) 7%, transparent);
-    color: color-mix(in srgb, var(--ag-text) 60%, transparent);
-    cursor: pointer; transition: background .15s, color .15s;
+    border: 1px solid transparent; border-radius: 9px;
+    background: var(--ag-soft);
+    color: color-mix(in srgb, var(--ag-text) 62%, transparent);
+    cursor: pointer; font-size: 1.02em;
+    transition: background .15s, color .15s, transform .2s, border-color .15s;
 }
-.ag-close:hover { background: color-mix(in srgb, #ff5252 35%, transparent); color: #fff; }
-.ag-sub { text-align: center; font-size: .72em; opacity: .5; margin-top: -6px; text-transform: uppercase; letter-spacing: .08em; }
+.ag-close:hover { background: color-mix(in srgb, #ff5252 32%, transparent); color: #fff; border-color: color-mix(in srgb, #ff5252 45%, transparent); transform: rotate(90deg); }
+.ag-close:active { transform: rotate(90deg) scale(.9); }
+.ag-sub {
+    align-self: center; margin-top: -8px;
+    padding: 2px 11px; border-radius: 999px;
+    font-size: .64em; font-weight: 700; opacity: .85;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: color-mix(in srgb, var(--ag-accent) 80%, var(--ag-text));
+    background: color-mix(in srgb, var(--ag-accent) 12%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ag-accent) 22%, transparent);
+}
+.ag-sub:empty { display: none; }
 
 /* ── Сцена ── */
-.ag-stage { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.ag-stage { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .ag-figure {
     position: relative;
-    width: min(240px, 60vw);
+    width: min(244px, 60vw);
     aspect-ratio: 1 / 1;
     flex-shrink: 0;
     border-radius: var(--ag-radius);
     overflow: hidden;
-    background: color-mix(in srgb, var(--ag-text) 5%, transparent);
+    background:
+        repeating-conic-gradient(color-mix(in srgb, var(--ag-text) 7%, transparent) 0% 25%, transparent 0% 50%)
+        0 0 / 18px 18px,
+        var(--ag-softer);
     border: 1px solid var(--ag-border);
+    box-shadow: inset 0 2px 14px color-mix(in srgb, #000 22%, transparent);
 }
-#ag-main { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .14s, transform .14s; }
+#ag-main { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .16s, transform .16s; }
 #ag-main.fade { opacity: 0; transform: scale(.97); }
 .ag-ring {
     position: absolute; inset: 0; border-radius: var(--ag-radius);
-    pointer-events: none; opacity: 0; transition: opacity .2s;
-    box-shadow: inset 0 0 0 3px var(--ag-accent), 0 0 22px color-mix(in srgb, var(--ag-accent) 40%, transparent);
+    pointer-events: none; opacity: 0; transition: opacity .25s;
+    box-shadow: inset 0 0 0 3px var(--ag-accent), inset 0 0 24px color-mix(in srgb, var(--ag-accent) 45%, transparent), 0 0 26px color-mix(in srgb, var(--ag-accent) 35%, transparent);
 }
 .ag-figure.is-applied .ag-ring { opacity: 1; }
+/* плашка «текущая» поверх фигуры — тёмная основа, чтобы белый текст читался при любом акценте темы */
+.ag-figure.is-applied::after {
+    content: "✓ ТЕКУЩАЯ";
+    position: absolute; left: 10px; top: 10px; z-index: 3;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: .6em; font-weight: 700; letter-spacing: .08em;
+    color: #fff;
+    background: color-mix(in srgb, var(--ag-accent) 38%, rgba(8, 8, 12, .92));
+    border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .65);
+    box-shadow: 0 2px 8px color-mix(in srgb, #000 55%, transparent);
+}
 .ag-empty {
     position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-    color: color-mix(in srgb, var(--ag-text) 40%, transparent); font-size: .82em;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+    color: color-mix(in srgb, var(--ag-text) 42%, transparent); font-size: .82em; text-align: center;
 }
-.ag-empty i { font-size: 2.4em; opacity: .4; }
+.ag-empty i { font-size: 2.6em; opacity: .35; }
+.ag-empty small { opacity: .7; }
 
 .ag-arrow {
-    flex-shrink: 0; width: 36px; height: 36px;
+    flex-shrink: 0; width: 38px; height: 38px;
     display: flex; align-items: center; justify-content: center;
     border-radius: 50%; border: 1px solid var(--ag-border);
-    background: color-mix(in srgb, var(--ag-text) 6%, transparent);
-    color: var(--ag-text); cursor: pointer;
-    transition: background .15s, transform .1s;
+    background: var(--ag-soft);
+    color: var(--ag-text); cursor: pointer; font-size: .95em;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--ag-shadow) 35%, transparent);
+    transition: background .15s, transform .14s, border-color .15s, box-shadow .15s;
 }
-.ag-arrow:hover { background: color-mix(in srgb, var(--ag-accent) 40%, transparent); transform: scale(1.07); }
-.ag-arrow:active { transform: scale(.94); }
-.ag-arrow:disabled { opacity: .25; pointer-events: none; }
+.ag-arrow:hover { background: color-mix(in srgb, var(--ag-accent) 35%, transparent); border-color: color-mix(in srgb, var(--ag-accent) 50%, transparent); transform: scale(1.08); }
+.ag-arrow:active { transform: scale(.93); }
+.ag-arrow:disabled { opacity: .22; pointer-events: none; box-shadow: none; }
+#ag-prev:hover:not(:disabled) i { animation: ag-nudge-l .5s ease infinite alternate; }
+#ag-next:hover:not(:disabled) i { animation: ag-nudge-r .5s ease infinite alternate; }
+@keyframes ag-nudge-l { to { transform: translateX(-2px) } }
+@keyframes ag-nudge-r { to { transform: translateX(2px) } }
 
 /* ── Действие ── */
 .ag-bar { display: flex; align-items: center; justify-content: center; gap: 12px; }
-.ag-counter { font-size: .82em; opacity: .5; font-variant-numeric: tabular-nums; min-width: 42px; text-align: center; }
-#ag-modal .ag-apply { display: inline-flex; align-items: center; gap: 6px; }
+.ag-counter { font-size: .82em; opacity: .55; font-variant-numeric: tabular-nums; min-width: 46px; text-align: center; letter-spacing: .03em; }
+#ag-modal .ag-apply { display: inline-flex; align-items: center; gap: 7px; border-radius: 10px; font-weight: 600; transition: filter .15s, transform .12s, box-shadow .15s; }
 #ag-modal .ag-apply:not(:disabled) {
-    background: color-mix(in srgb, var(--ag-accent) 78%, transparent);
-    color: #fff; border-color: color-mix(in srgb, var(--ag-accent) 60%, transparent);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--ag-accent) 92%, #fff), color-mix(in srgb, var(--ag-accent) 70%, #000));
+    color: #fff; border: none;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--ag-accent) 40%, transparent);
 }
+#ag-modal .ag-apply:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 18px color-mix(in srgb, var(--ag-accent) 50%, transparent); }
+#ag-modal .ag-apply:not(:disabled):hover i { animation: ag-spark .6s ease infinite; }
+#ag-modal .ag-apply:not(:disabled):active { transform: translateY(0) scale(.98); }
+@keyframes ag-spark { 0%, 100% { transform: rotate(0) scale(1) } 40% { transform: rotate(-12deg) scale(1.15) } }
+/* применённая аватарка — кнопка остаётся читаемой (а не блёкло-disabled) */
+#ag-modal .ag-apply.is-current {
+    opacity: 1;
+    cursor: default;
+    border: 1px solid color-mix(in srgb, var(--ag-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--ag-accent) 18%, transparent);
+    color: color-mix(in srgb, var(--ag-text) 88%, var(--ag-accent));
+    box-shadow: none;
+}
+#ag-modal .ag-apply.is-current i { color: color-mix(in srgb, #4caf50 65%, var(--ag-accent)); }
 
-/* ── Миниатюры (горизонтальная лента, листается влево/вправо) ── */
+/* ── Миниатюры (горизонтальная лента) ── */
 .ag-thumbs {
-    display: flex; flex-wrap: nowrap; gap: 7px; justify-content: flex-start;
-    min-height: 60px; overflow-x: auto; overflow-y: hidden; padding: 5px 2px;
+    display: flex; flex-wrap: nowrap; gap: 8px; justify-content: flex-start;
+    min-height: 64px; overflow-x: auto; overflow-y: hidden;
+    /* отступы ≥ выноса кружка-метки (top/left -5..-6px), иначе он обрезается краем ленты */
+    padding: 9px 9px 10px;
     scrollbar-width: thin; scroll-behavior: smooth;
+    scrollbar-color: color-mix(in srgb, var(--ag-text) 25%, transparent) transparent;
 }
-.ag-thumbs::-webkit-scrollbar { height: 7px; }
-.ag-thumbs::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ag-text) 25%, transparent); border-radius: 4px; }
-.ag-thumb-wrap { position: relative; width: 52px; height: 52px; flex: 0 0 auto; }
+.ag-thumbs::-webkit-scrollbar { height: 8px; }
+.ag-thumbs::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ag-text) 22%, transparent); border-radius: 5px; }
+.ag-thumb-wrap { position: relative; width: 54px; height: 54px; flex: 0 0 auto; }
 .ag-thumb {
-    width: 52px; height: 52px; object-fit: cover; border-radius: 8px; cursor: pointer;
+    width: 54px; height: 54px; object-fit: cover; border-radius: 9px; cursor: pointer;
     opacity: .6; border: 2px solid transparent;
-    transition: opacity .15s, border-color .15s, transform .1s;
+    box-shadow: 0 1px 4px color-mix(in srgb, #000 25%, transparent);
+    transition: opacity .15s, border-color .15s, transform .12s, box-shadow .15s;
 }
-.ag-thumb:hover { opacity: .95; transform: scale(1.05); }
-.ag-thumb.selected { opacity: 1; border-color: color-mix(in srgb, var(--ag-text) 45%, transparent); }
-.ag-thumb-wrap.applied .ag-thumb { opacity: 1; border-color: var(--ag-accent); }
+.ag-thumb:hover { opacity: 1; transform: translateY(-2px) scale(1.06); box-shadow: 0 5px 14px color-mix(in srgb, #000 40%, transparent); }
+.ag-thumb.selected { opacity: 1; border-color: color-mix(in srgb, var(--ag-text) 50%, transparent); }
+.ag-thumb-wrap.applied .ag-thumb { opacity: 1; border-color: var(--ag-accent); box-shadow: 0 0 0 1px var(--ag-accent), 0 0 12px color-mix(in srgb, var(--ag-accent) 45%, transparent); }
 .ag-thumb-star {
-    position: absolute; left: -4px; top: -4px; z-index: 2;
-    width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; color: var(--ag-accent); background: var(--ag-panel); border-radius: 50%; pointer-events: none;
+    position: absolute; left: -5px; top: -5px; z-index: 2;
+    width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #fff; background: var(--ag-accent); border-radius: 50%;
+    box-shadow: 0 1px 4px color-mix(in srgb, #000 45%, transparent); pointer-events: none;
 }
 .ag-thumb-del {
-    display: none; position: absolute; right: -5px; top: -5px; z-index: 3;
-    width: 17px; height: 17px; align-items: center; justify-content: center;
-    border: none; border-radius: 50%; background: #e53935; color: #fff; font-size: 9px; cursor: pointer; padding: 0;
+    display: none; position: absolute; right: -6px; top: -6px; z-index: 3;
+    width: 18px; height: 18px; align-items: center; justify-content: center;
+    border: 1.5px solid var(--ag-panel); border-radius: 50%; background: #e53935; color: #fff; font-size: 9px; cursor: pointer; padding: 0;
+    box-shadow: 0 1px 5px color-mix(in srgb, #000 45%, transparent);
+    transition: transform .12s, background .12s;
 }
+.ag-thumb-del:hover { transform: scale(1.18); background: #ff5252; }
 .ag-thumb-wrap:hover .ag-thumb-del { display: flex; }
 
 /* ── Подвал / статус ── */
 .ag-foot { display: flex; justify-content: center; }
-#ag-modal .ag-upload { display: inline-flex; align-items: center; gap: 6px; }
-.ag-status { text-align: center; font-size: .76em; min-height: 15px; }
-.ag-status.ok { color: color-mix(in srgb, #4caf50 75%, var(--ag-text)); }
-.ag-status.warn { color: color-mix(in srgb, #ff9800 80%, var(--ag-text)); }
+#ag-modal .ag-upload { display: inline-flex; align-items: center; gap: 7px; border-radius: 10px; transition: background .15s, transform .12s, border-color .15s; }
+#ag-modal .ag-upload:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--ag-accent) 50%, transparent); }
+.ag-status { text-align: center; font-size: .78em; min-height: 16px; transition: color .2s; }
+.ag-status.ok { color: color-mix(in srgb, #4caf50 78%, var(--ag-text)); font-weight: 600; }
+.ag-status.warn { color: color-mix(in srgb, #ff9800 82%, var(--ag-text)); font-weight: 600; }
+.ag-status.wait { opacity: .7; }
 
 /* ── Настройки расширения ── */
-#ag-settings .ag-hint { display: block; margin-top: 6px; opacity: .65; font-size: .85em; line-height: 1.4; }
+#ag-settings .inline-drawer-content { flex-direction: column; gap: 11px; }
+#ag-settings .ag-toggle { margin: 0; }
+#ag-settings .ag-mgr-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; border-radius: 10px; font-weight: 600;
+    border: 1px solid color-mix(in srgb, var(--ag-accent) 40%, transparent);
+    transition: border-color .15s, background .15s, transform .12s;
+}
+#ag-settings .ag-mgr-btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--ag-accent) 70%, transparent); background: color-mix(in srgb, var(--ag-accent) 12%, transparent); }
+#ag-settings .ag-mgr-btn i { color: var(--ag-accent); }
+
+/* компактные «факты»-лимиты */
+#ag-settings .ag-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+#ag-settings .ag-fact {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    padding: 10px 6px 9px; border-radius: 12px; text-align: center;
+    background: var(--ag-softer);
+    border: 1px solid var(--ag-line);
+    transition: border-color .15s, background .15s;
+}
+#ag-settings .ag-fact:hover { border-color: color-mix(in srgb, var(--ag-accent) 30%, var(--ag-line)); background: var(--ag-soft); }
+#ag-settings .ag-fact i { font-size: 1.05em; color: var(--ag-accent); opacity: .9; margin-bottom: 3px; }
+#ag-settings .ag-fact b { font-size: 1em; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+#ag-settings .ag-fact span { font-size: .72em; opacity: .58; line-height: 1.2; }
+
+#ag-settings .ag-hint {
+    display: flex; align-items: flex-start; gap: 7px; margin: 0;
+    opacity: .6; font-size: .82em; line-height: 1.4;
+}
+#ag-settings .ag-hint i { color: var(--ag-accent); opacity: .85; margin-top: 1px; flex-shrink: 0; }
 
 /* ── Менеджер аватарок ── */
-.agm-panel { width: min(680px, 95vw); }
-.agm-list { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; max-height: 72vh; padding-right: 4px; }
+.agm-panel { width: min(700px, 95vw); }
+.agm-list { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; max-height: 72vh; padding: 2px 6px 2px 0; }
+.agm-list::-webkit-scrollbar { width: 9px; }
+.agm-list::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ag-text) 18%, transparent); border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
 .agm-entity {
     border: 1px solid var(--ag-border);
-    border-radius: 12px;
-    padding: 10px 12px;
-    background: color-mix(in srgb, var(--ag-text) 4%, transparent);
+    border-radius: 13px;
+    padding: 12px 13px;
+    background: var(--ag-softer);
+    transition: border-color .15s, transform .12s, background .15s;
 }
-.agm-entity-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 600; font-size: .9em; }
-.agm-entity-head > i { color: var(--ag-accent); flex-shrink: 0; }
-.agm-entity-name { cursor: pointer; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agm-entity-name:hover { text-decoration: underline; }
-.agm-entity-cnt { opacity: .5; font-size: .85em; font-variant-numeric: tabular-nums; }
+.agm-entity:hover { border-color: color-mix(in srgb, var(--ag-accent) 35%, var(--ag-border)); background: var(--ag-soft); }
+.agm-entity-head { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; font-weight: 600; font-size: .92em; }
+.agm-ic {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; font-size: .82em;
+    color: var(--ag-accent);
+    background: color-mix(in srgb, var(--ag-accent) 15%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ag-accent) 26%, transparent);
+}
+.agm-entity-name { cursor: pointer; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .15s; }
+.agm-entity-name:hover { text-decoration: underline; color: color-mix(in srgb, var(--ag-accent) 70%, var(--ag-text)); }
+.agm-entity-cnt {
+    flex-shrink: 0; opacity: .85; font-size: .76em; font-variant-numeric: tabular-nums;
+    padding: 1px 8px; border-radius: 999px;
+    background: var(--ag-soft); color: color-mix(in srgb, var(--ag-text) 70%, transparent);
+}
 .agm-entity-del {
-    flex-shrink: 0; width: 26px; height: 26px;
+    flex-shrink: 0; width: 28px; height: 28px;
     display: flex; align-items: center; justify-content: center;
-    border: none; border-radius: 7px; cursor: pointer;
-    background: color-mix(in srgb, var(--ag-text) 8%, transparent);
+    border: none; border-radius: 8px; cursor: pointer;
+    background: var(--ag-soft);
     color: color-mix(in srgb, var(--ag-text) 55%, transparent);
-    transition: background .15s, color .15s;
+    transition: background .15s, color .15s, transform .15s;
 }
-.agm-entity-del:hover { background: color-mix(in srgb, #e53935 35%, transparent); color: #fff; }
-.agm-strip { min-height: 56px; }
+.agm-entity-del:hover { background: color-mix(in srgb, #e53935 32%, transparent); color: #fff; transform: scale(1.06); }
+.agm-strip { min-height: 60px; }
 .agm-strip .ag-thumb { cursor: pointer; }
 .agm-empty {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-    padding: 30px 10px; color: color-mix(in srgb, var(--ag-text) 45%, transparent); font-size: .85em; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    padding: 40px 14px; color: color-mix(in srgb, var(--ag-text) 45%, transparent); font-size: .88em; text-align: center;
 }
-.agm-empty i { font-size: 2.4em; opacity: .4; }
+.agm-empty i { font-size: 2.8em; opacity: .35; }
+.agm-empty small { opacity: .75; }
 
-/* ── Узкие экраны ── */
-@media (max-width: 500px) {
-    .ag-panel { width: 96vw; padding: 12px 12px 10px; }
-    .ag-arrow { width: 32px; height: 32px; }
+/* ── Узкие экраны / телефон ── */
+@media (max-width: 560px) {
+    #ag-modal, #agm-modal { padding: 8px; }
+    .ag-panel {
+        width: 100%; max-width: 100%; max-height: 94vh;
+        padding: 14px 13px calc(12px + env(safe-area-inset-bottom, 0px));
+        gap: 12px;
+    }
+    .agm-panel { width: 100%; }
+    .ag-head { gap: 8px; }
+    .ag-stage { gap: 8px; }
+    .ag-figure { width: min(260px, 62vw); }
+    .ag-arrow { width: 36px; height: 36px; }
+    /* кнопка действия — на всю ширину, счётчик над ней */
+    .ag-bar { flex-wrap: wrap; }
+    #ag-modal .ag-apply { flex: 1 1 100%; justify-content: center; }
+    #ag-modal .ag-upload { width: 100%; justify-content: center; }
+    .ag-thumb-wrap, .ag-thumb { width: 58px; height: 58px; }
+    .agm-list { max-height: 80vh; }
+    .agm-entity { padding: 11px 11px; }
+}
+
+/* ── Сенсорные экраны: то, что обычно по наведению — делаем доступным по тапу ── */
+@media (hover: none) {
+    .ag-ov.hoveronly { opacity: .85; pointer-events: auto; transform: none; }
+    .ag-thumb-del { display: flex; }
 }

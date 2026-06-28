@@ -14,7 +14,8 @@
     try { _power    = await import('../../../power-user.js'); } catch {}
 
     const MY_KEY = 'avatar-gallery';
-    const STORE_MAX = 1024;
+    const STORE_MAX = 1024;   // макс. сторона картинки в пикселях
+    const MAX_IMAGES = 60;    // макс. число картинок в одной галерее
 
     // ── Настройки ───────────────────────────────────────────────────────────
     function ctx() { try { return window.SillyTavern?.getContext?.() ?? null; } catch { return null; } }
@@ -24,7 +25,6 @@
         const m = s[MY_KEY];
         if (typeof m.enabled !== 'boolean') m.enabled = true;
         if (typeof m.onMessages !== 'boolean') m.onMessages = true;
-        if (typeof m.onCharList !== 'boolean') m.onCharList = true;
         return m;
     }
     function save() { try { ctx()?.saveSettingsDebounced?.(); } catch { _ext?.saveSettingsDebounced?.(); } }
@@ -73,7 +73,10 @@
             const cv = document.createElement('canvas');
             cv.width = Math.round(w * scale); cv.height = Math.round(h * scale);
             cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-            return cv.toDataURL('image/png');
+            // PNG/WebP/GIF могут иметь прозрачность — не перекодируем в JPEG; фото (JPEG) жмём в JPEG.
+            const srcMime = (dataUrl.match(/^data:([^;,]+)/) || [, ''])[1].toLowerCase();
+            const keepPng = srcMime !== 'image/jpeg' && srcMime !== 'image/jpg';
+            return keepPng ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg', 0.9);
         } catch { return dataUrl; }
     }
     function fileToDataUrl(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || '')); r.onerror = () => rej(r.error); r.readAsDataURL(file); }); }
@@ -98,17 +101,17 @@
         try { const h = (_script?.getRequestHeaders?.({ omitContentType: true })) ?? ctx()?.getRequestHeaders?.() ?? {}; delete h['Content-Type']; return h; } catch { return {}; }
     }
     function thumb(type, id) { try { if (_script?.getThumbnailUrl) return _script.getThumbnailUrl(type, id); } catch {} return `/thumbnail?type=${type}&file=${encodeURIComponent(id)}`; }
-    function bustImages(token) {
-        if (!token) return;
-        const enc = encodeURIComponent(token);
+    function bustImages(type, id) {
+        if (!id) return;
+        const kind = type === 'persona' ? 'persona' : 'char';
         document.querySelectorAll('img').forEach(img => {
             const src = img.getAttribute('src') || '';
-            if (src.includes(token) || src.includes(enc)) {
-                const base = src.split('#')[0].split('?')[0];
-                let q = src.includes('?') ? src.slice(src.indexOf('?') + 1) : '';
-                q = q.replace(/[&?]?_agb=\d+/, '');
-                img.src = base + '?' + (q ? q + '&' : '') + '_agb=' + Date.now();
-            }
+            const parsed = parseAvatarFromSrc(src);
+            if (!parsed || parsed.kind !== kind || parsed.id !== id) return;
+            const base = src.split('#')[0].split('?')[0];
+            let q = (src.split('?')[1] || '').split('#')[0];
+            q = q.split('&').filter(p => p && !p.startsWith('_agb=')).join('&');
+            img.src = base + '?' + (q ? q + '&' : '') + '_agb=' + Date.now();
         });
     }
 
@@ -167,7 +170,7 @@
         const r = await fetch(url, { method: 'POST', headers: headers(), cache: 'no-cache', body: fd });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         try { await fetch(thumb(entity.type === 'persona' ? 'persona' : 'avatar', entity.id), { cache: 'reload' }); } catch {}
-        bustImages(entity.id);
+        bustImages(entity.type, entity.id);
         return true;
     }
 
@@ -175,18 +178,28 @@
     function mkImgId() { return 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7); }
     async function getGallery(entity) {
         let rec = await idbGet(entity.key);
+        const isNew = !rec;
         if (!rec) rec = { key: entity.key, images: [], appliedId: null };
         if (!Array.isArray(rec.images)) rec.images = [];
-        if (rec.images.length === 0) {
+        // Засеваем текущей аватаркой только при ПЕРВОМ создании записи: если пользователь
+        // сам опустошил галерею — не воскрешаем. Запись сохраняем всегда (даже пустую),
+        // чтобы не пере-засевать и не бить по сети при каждом открытии.
+        if (isNew) {
             const cur = await urlToDataUrl(entity.fullSrc) || await urlToDataUrl(entity.currentSrc);
-            if (cur) { const item = { id: mkImgId(), data: await downscale(cur), ts: Date.now() }; rec.images.push(item); rec.appliedId = item.id; await idbSet(rec); }
+            if (cur) { const item = { id: mkImgId(), data: await downscale(cur), ts: Date.now() }; rec.images.push(item); rec.appliedId = item.id; }
+            await idbSet(rec);
         }
         return rec;
     }
     async function addImages(entity, dataUrls) {
+        // Жёсткий лимит: добавляем только пока есть место до MAX_IMAGES, лишнее не берём.
         const rec = await getGallery(entity);
         let last = null;
-        for (const du of dataUrls) { const item = { id: mkImgId(), data: await downscale(du), ts: Date.now() }; rec.images.push(item); last = item; }
+        for (const du of dataUrls) {
+            if (rec.images.length >= MAX_IMAGES) break;
+            const item = { id: mkImgId(), data: await downscale(du), ts: Date.now() };
+            rec.images.push(item); last = item;
+        }
         await idbSet(rec);
         return last;
     }
@@ -208,7 +221,7 @@
 <div id="ag-modal" role="dialog" aria-modal="true">
   <div class="ag-panel">
     <div class="ag-head">
-      <div class="ag-title"><i class="fa-solid fa-images"></i> <span id="ag-name">Галерея</span></div>
+      <div class="ag-title"><span class="ag-ic"><i class="fa-solid fa-images"></i></span> <span id="ag-name">Галерея</span></div>
       <button class="ag-close" id="ag-close" title="Закрыть"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="ag-sub" id="ag-sub"></div>
@@ -242,10 +255,16 @@
         $('ag-upload').onclick = () => $('ag-file').click();
         $('ag-file').onchange = onUpload;
         document.addEventListener('keydown', (e) => {
-            if (!document.getElementById('ag-modal')?.classList.contains('open')) return;
+            const galOpen = document.getElementById('ag-modal')?.classList.contains('open');
+            const mgr = document.getElementById('agm-modal');
+            if (e.key === 'Escape') {
+                if (galOpen) closeModal();
+                else if (mgr?.classList.contains('open')) mgr.classList.remove('open');
+                return;
+            }
+            if (!galOpen) return;
             if (e.key === 'ArrowLeft') nav(-1);
             if (e.key === 'ArrowRight') nav(1);
-            if (e.key === 'Escape') closeModal();
         });
     }
     function closeModal() { document.getElementById('ag-modal')?.classList.remove('open'); }
@@ -278,12 +297,14 @@
         const cur = imgs[_view];
         const applied = cur.id === _rec.appliedId;
         main.style.display = 'block'; empty.style.display = 'none';
+        clearTimeout(render._fadeT);
         main.classList.add('fade');
-        setTimeout(() => { main.src = cur.data; main.classList.remove('fade'); }, 80);
+        render._fadeT = setTimeout(() => { main.src = cur.data; main.classList.remove('fade'); }, 80);
         fig.classList.toggle('is-applied', applied);
         $('ag-counter').textContent = `${_view + 1} / ${total}`;
         $('ag-prev').disabled = $('ag-next').disabled = total <= 1;
         apply.disabled = applied || _busy;
+        apply.classList.toggle('is-current', applied);
         apply.innerHTML = applied ? '<i class="fa-solid fa-circle-check"></i> Текущая аватарка' : '<i class="fa-solid fa-wand-magic-sparkles"></i> Сделать аватаркой';
 
         const thumbs = $('ag-thumbs'); thumbs.innerHTML = '';
@@ -313,13 +334,20 @@
     async function onUpload(e) {
         const files = Array.from(e.target.files || []); e.target.value = '';
         if (!files.length || !_entity) return;
+        // Считаем свободные места ДО чтения файлов — лишние не читаем и не добавляем.
+        const free = MAX_IMAGES - (await getGallery(_entity)).images.length;
+        if (free <= 0) { setStatus(`⚠ Лимит ${MAX_IMAGES} достигнут — удали лишнее`, 'warn'); return; }
+        const accept = files.slice(0, free);
+        const skipped = files.length - accept.length;
         setStatus('Добавляю…', '');
         const dataUrls = [];
-        for (const f of files) { try { dataUrls.push(await fileToDataUrl(f)); } catch {} }
+        for (const f of accept) { try { dataUrls.push(await fileToDataUrl(f)); } catch {} }
         const last = await addImages(_entity, dataUrls);
         _rec = await getGallery(_entity);
         if (last) { const i = _rec.images.findIndex(x => x.id === last.id); if (i >= 0) _view = i; }
-        render(); setStatus('✓ Добавлено', 'ok');
+        render();
+        if (skipped > 0) setStatus(`⚠ Добавлено ${dataUrls.length}, не вошло ${skipped} (лимит ${MAX_IMAGES})`, 'warn');
+        else setStatus(`✓ Добавлено: ${dataUrls.length}`, 'ok');
     }
     async function onDelete(imgId) {
         if (!_entity) return;
@@ -343,7 +371,7 @@
 <div id="agm-modal" role="dialog" aria-modal="true">
   <div class="ag-panel agm-panel">
     <div class="ag-head">
-      <div class="ag-title"><i class="fa-solid fa-layer-group"></i> <span>Менеджер аватарок</span></div>
+      <div class="ag-title"><span class="ag-ic"><i class="fa-solid fa-layer-group"></i></span> <span>Менеджер аватарок</span></div>
       <button class="ag-close" id="agm-close" title="Закрыть"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="agm-list" id="agm-list"></div>
@@ -375,7 +403,7 @@
             const isPersona = rec.key.startsWith('persona:');
             const sec = document.createElement('div'); sec.className = 'agm-entity';
             const head = document.createElement('div'); head.className = 'agm-entity-head';
-            head.innerHTML = `<i class="fa-solid ${isPersona ? 'fa-id-badge' : 'fa-user'}"></i>
+            head.innerHTML = `<span class="agm-ic"><i class="fa-solid ${isPersona ? 'fa-id-badge' : 'fa-user'}"></i></span>
                 <span class="agm-entity-name" title="Открыть галерею">${escapeHtml(name)}</span>
                 <span class="agm-entity-cnt">${rec.images.length}</span>`;
             const delAll = document.createElement('button');
@@ -406,7 +434,7 @@
         const rec = await idbGet(key); if (!rec) return;
         rec.images = rec.images.filter(i => i.id !== imgId);
         if (rec.appliedId === imgId) rec.appliedId = null;
-        if (rec.images.length) await idbSet(rec); else await idbDel(key);
+        await idbSet(rec); // храним пустую запись (галерея просто скрывается из списка), чтобы не воскрешать текущей аватаркой
         renderManager();
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -437,6 +465,9 @@
     }
     function attachCharOverlay() {
         const host = document.getElementById('avatar_div_div');
+        if (!host) return;
+        // Нет выбранного персонажа (группа / welcome) — не показываем бесполезный значок.
+        if (!charEntity()) { host.querySelector(':scope > .ag-ov')?.remove(); return; }
         attachOverlay(host, () => { const e = charEntity(); if (e) openFor(e); });
     }
     function attachMessageOverlays() {
@@ -444,18 +475,6 @@
         document.querySelectorAll('#chat .mes .mesAvatarWrapper .avatar').forEach(av => {
             const mes = av.closest('.mes');
             attachOverlay(av, () => { const e = entityFromMessage(mes); if (e) openFor(e); }, 'hoveronly');
-        });
-    }
-    function attachCharListOverlays() {
-        if (!settings().onCharList) return;
-        document.querySelectorAll('#rm_print_characters_block .character_select[chid] .avatar').forEach(av => {
-            const sel = av.closest('.character_select');
-            attachOverlay(av, () => {
-                const chid = sel?.getAttribute('chid');
-                if (chid === '' || chid == null) return;
-                const ch = characters()?.[Number(chid)];
-                if (ch?.avatar) openFor(charEntityFor(ch.avatar, ch.name));
-            }, 'hoveronly');
         });
     }
     function removeOverlays(sel) { document.querySelectorAll(sel || '.ag-ov').forEach(el => el.remove()); }
@@ -482,29 +501,35 @@
 <div id="ag-settings" class="inline-drawer">
   <div class="inline-drawer-header" id="ag-drawer-head" style="cursor:pointer">
     <b><i class="fa-solid fa-images"></i> Галерея аватарок</b>
-    <div id="ag-drawer-icon" class="inline-drawer-icon fa-solid fa-circle-chevron-up up"></div>
+    <div id="ag-drawer-icon" class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
   </div>
-  <div class="inline-drawer-content" id="ag-drawer-body" style="display:block">
-    <label class="checkbox_label"><input type="checkbox" id="ag-enabled"><span>Включить галерею (значки 🖼 на аватарках)</span></label>
-    <label class="checkbox_label"><input type="checkbox" id="ag-on-messages"><span>Значки на аватарках в сообщениях чата</span></label>
-    <label class="checkbox_label"><input type="checkbox" id="ag-on-charlist"><span>Значки в списке персонажей</span></label>
-    <small class="ag-hint">Клик по значку открывает галерею этой аватарки; выбор делает картинку реальной аватаркой в таверне. В меню-палочке — «Менеджер аватарок» со всеми. Хранение локальное (IndexedDB).</small>
+  <div class="inline-drawer-content" id="ag-drawer-body" style="display:none">
+    <label class="checkbox_label ag-toggle"><input type="checkbox" id="ag-enabled"><span>Включить галерею</span></label>
+    <label class="checkbox_label ag-toggle"><input type="checkbox" id="ag-on-messages"><span>Значки в сообщениях чата</span></label>
+    <button id="ag-open-mgr" class="menu_button ag-mgr-btn"><i class="fa-solid fa-layer-group"></i> Менеджер аватарок</button>
+    <div class="ag-facts">
+      <div class="ag-fact"><i class="fa-solid fa-images"></i><b>${MAX_IMAGES}</b><span>в галерее</span></div>
+      <div class="ag-fact"><i class="fa-solid fa-expand"></i><b>${STORE_MAX}px</b><span>макс. сторона</span></div>
+      <div class="ag-fact"><i class="fa-solid fa-database"></i><b>Локально</b><span>IndexedDB</span></div>
+    </div>
+    <small class="ag-hint"><i class="fa-solid fa-circle-info"></i><span>Прозрачность PNG/WebP сохраняется, фото пережимаются в JPEG. Клик по значку 🖼 на аватарке — её галерея.</span></small>
   </div>
 </div>`);
         const body = document.getElementById('ag-drawer-body');
         const icon = document.getElementById('ag-drawer-icon');
         document.getElementById('ag-drawer-head').onclick = () => {
             const open = body.style.display !== 'none';
-            body.style.display = open ? 'none' : 'block';
+            body.style.display = open ? 'none' : 'flex';
+            icon.classList.toggle('fa-circle-chevron-up', !open);
+            icon.classList.toggle('fa-circle-chevron-down', open);
             icon.classList.toggle('up', !open); icon.classList.toggle('down', open);
         };
+        document.getElementById('ag-open-mgr').onclick = openManager;
         const en = document.getElementById('ag-enabled');
         const msg = document.getElementById('ag-on-messages');
-        const cl = document.getElementById('ag-on-charlist');
-        en.checked = isEnabled(); msg.checked = settings().onMessages !== false; cl.checked = settings().onCharList !== false;
+        en.checked = isEnabled(); msg.checked = settings().onMessages !== false;
         en.onchange = () => { settings().enabled = en.checked; save(); applyEnabledState(); };
         msg.onchange = () => { settings().onMessages = msg.checked; save(); removeOverlays('.ag-ov.hoveronly'); tick(); };
-        cl.onchange = () => { settings().onCharList = cl.checked; save(); removeOverlays('.ag-ov.hoveronly'); tick(); };
     }
     function applyEnabledState() {
         if (isEnabled()) { tick(); }
@@ -518,7 +543,6 @@
         attachPersonaOverlays();
         attachCharOverlay();
         attachMessageOverlays();
-        attachCharListOverlays();
         addWandEntry();
     }
     function initOnce() { addSettingsPanel(); applyEnabledState(); }
@@ -534,13 +558,20 @@
     } catch {}
 
     let dbt;
-    const obs = new MutationObserver(() => { if (!isEnabled()) return; clearTimeout(dbt); dbt = setTimeout(tick, 200); });
+    const isOurNode = (n) => n.nodeType === 1 && (n.classList?.contains('ag-ov') || n.id === 'ag-wand');
+    const obs = new MutationObserver((muts) => {
+        if (!isEnabled()) return;
+        // Пропускаем мутации, вызванные нашими же оверлеями/пунктом меню — иначе observer гоняет tick вхолостую.
+        const onlyOurs = muts.some(m => m.addedNodes.length > 0)
+            && muts.every(m => m.removedNodes.length === 0 && Array.from(m.addedNodes).every(isOurNode));
+        if (onlyOurs) return;
+        clearTimeout(dbt); dbt = setTimeout(tick, 200);
+    });
     const observe = (id, opts) => { const el = document.getElementById(id); if (el) obs.observe(el, opts); };
     const startObs = () => {
         observe('user_avatar_block', { childList: true, subtree: true });
         observe('extensionsMenu', { childList: true });
         observe('chat', { childList: true });
-        observe('rm_print_characters_block', { childList: true, subtree: true });
     };
     [500, 2000].forEach(t => setTimeout(startObs, t));
 
