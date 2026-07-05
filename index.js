@@ -215,6 +215,14 @@
     // ── Одиночная галерея (модалка) ─────────────────────────────────────────
     let _entity = null, _rec = null, _view = 0, _busy = false;
 
+    // ST закрывает открытые панели (персоны/персонаж) по mousedown/touchstart на html,
+    // если нажатие вне панели. Не пускаем события из наших окон/значков наверх,
+    // иначе панель под галереей закрывается.
+    function shieldFromST(el) {
+        ['mousedown', 'touchstart', 'pointerdown', 'click'].forEach(t =>
+            el.addEventListener(t, (e) => e.stopPropagation()));
+    }
+
     function buildModal() {
         if (document.getElementById('ag-modal')) return;
         document.body.insertAdjacentHTML('beforeend', `
@@ -247,6 +255,7 @@
   </div>
 </div>`);
         const $ = (id) => document.getElementById(id);
+        shieldFromST($('ag-modal'));
         $('ag-close').onclick = closeModal;
         $('ag-modal').onclick = (e) => { if (e.target.id === 'ag-modal') closeModal(); };
         $('ag-prev').onclick = () => nav(-1);
@@ -378,6 +387,7 @@
     <div class="ag-status" id="agm-status"></div>
   </div>
 </div>`);
+        shieldFromST(document.getElementById('agm-modal'));
         document.getElementById('agm-close').onclick = () => document.getElementById('agm-modal').classList.remove('open');
         document.getElementById('agm-modal').onclick = (e) => { if (e.target.id === 'agm-modal') e.currentTarget.classList.remove('open'); };
     }
@@ -445,7 +455,8 @@
         b.className = 'ag-ov' + (variant ? ' ' + variant : '');
         b.title = 'Галерея аватарок';
         b.innerHTML = '<i class="fa-solid fa-images"></i>';
-        b.onclick = (e) => { e.preventDefault(); e.stopPropagation(); onClick(); };
+        shieldFromST(b);
+        b.onclick = (e) => { e.preventDefault(); onClick(); };
         return b;
     }
     function attachOverlay(av, onClick, variant) {
