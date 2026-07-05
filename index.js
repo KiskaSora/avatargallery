@@ -15,6 +15,7 @@
 
     const MY_KEY = 'avatar-gallery';
     const STORE_MAX = 1024;   // макс. сторона картинки в пикселях
+    const THUMB_MAX = 128;    // макс. сторона мини-превью для ленты
     const MAX_IMAGES = 60;    // макс. число картинок в одной галерее
 
     // ── Настройки ───────────────────────────────────────────────────────────
@@ -186,7 +187,11 @@
         // чтобы не пере-засевать и не бить по сети при каждом открытии.
         if (isNew) {
             const cur = await urlToDataUrl(entity.fullSrc) || await urlToDataUrl(entity.currentSrc);
-            if (cur) { const item = { id: mkImgId(), data: await downscale(cur), ts: Date.now() }; rec.images.push(item); rec.appliedId = item.id; }
+            if (cur) {
+                const data = await downscale(cur);
+                const item = { id: mkImgId(), data, thumb: await downscale(data, THUMB_MAX), ts: Date.now() };
+                rec.images.push(item); rec.appliedId = item.id;
+            }
             await idbSet(rec);
         }
         return rec;
@@ -197,7 +202,8 @@
         let last = null;
         for (const du of dataUrls) {
             if (rec.images.length >= MAX_IMAGES) break;
-            const item = { id: mkImgId(), data: await downscale(du), ts: Date.now() };
+            const data = await downscale(du);
+            const item = { id: mkImgId(), data, thumb: await downscale(data, THUMB_MAX), ts: Date.now() };
             rec.images.push(item); last = item;
         }
         await idbSet(rec);
@@ -290,6 +296,23 @@
         if (_rec.appliedId) { const i = _rec.images.findIndex(x => x.id === _rec.appliedId); if (i >= 0) _view = i; }
         setStatus('', '');
         render();
+        ensureThumbs(entity);
+    }
+
+    // Догенерируем мини-превью у старых галерей в фоне: сейчас лента уже показана
+    // полноразмерными, а при следующих открытиях загрузится быстро.
+    async function ensureThumbs(entity) {
+        const rec = await idbGet(entity.key);
+        if (!rec?.images?.some(i => !i.thumb)) return;
+        const made = {};
+        for (const im of rec.images) { if (!im.thumb) { try { made[im.id] = await downscale(im.data, THUMB_MAX); } catch {} } }
+        // Перечитываем запись перед сохранением: пока делали превью, картинки могли удалить/добавить.
+        const fresh = await idbGet(entity.key);
+        if (!fresh || !Array.isArray(fresh.images)) return;
+        let touched = false;
+        for (const im of fresh.images) { if (!im.thumb && made[im.id]) { im.thumb = made[im.id]; touched = true; } }
+        if (touched) await idbSet(fresh);
+        if (_rec && _entity?.key === entity.key) { for (const im of _rec.images) { if (!im.thumb && made[im.id]) im.thumb = made[im.id]; } }
     }
 
     function render() {
@@ -300,15 +323,13 @@
         if (total === 0) {
             main.style.display = 'none'; empty.style.display = 'flex'; fig.classList.remove('is-applied');
             $('ag-counter').textContent = '0 / 0'; $('ag-prev').disabled = $('ag-next').disabled = true;
-            apply.disabled = true; $('ag-thumbs').innerHTML = ''; return;
+            apply.disabled = true; $('ag-thumbs').innerHTML = ''; render._sig = ''; return;
         }
         if (_view >= total) _view = total - 1; if (_view < 0) _view = 0;
         const cur = imgs[_view];
         const applied = cur.id === _rec.appliedId;
         main.style.display = 'block'; empty.style.display = 'none';
-        clearTimeout(render._fadeT);
-        main.classList.add('fade');
-        render._fadeT = setTimeout(() => { main.src = cur.data; main.classList.remove('fade'); }, 80);
+        showMain(main, cur.data);
         fig.classList.toggle('is-applied', applied);
         $('ag-counter').textContent = `${_view + 1} / ${total}`;
         $('ag-prev').disabled = $('ag-next').disabled = total <= 1;
@@ -316,18 +337,42 @@
         apply.classList.toggle('is-current', applied);
         apply.innerHTML = applied ? '<i class="fa-solid fa-circle-check"></i> Текущая аватарка' : '<i class="fa-solid fa-wand-magic-sparkles"></i> Сделать аватаркой';
 
-        const thumbs = $('ag-thumbs'); thumbs.innerHTML = '';
-        imgs.forEach((im, i) => thumbs.appendChild(thumbEl(im, i === _view, im.id === _rec.appliedId,
-            () => { _view = i; render(); },
-            (e) => { e.stopPropagation(); onDelete(im.id); })));
-        const active = thumbs.querySelector('.ag-thumb.selected'); active?.scrollIntoView({ block: 'nearest', inline: 'center' });
+        const thumbs = $('ag-thumbs');
+        // Ленту пересобираем только при изменении состава; при листании — только классы,
+        // иначе миниатюры пере-декодируются и мигают.
+        const sig = imgs.map(x => x.id).join(',') + '|' + _rec.appliedId;
+        if (render._sig !== sig) {
+            render._sig = sig;
+            thumbs.innerHTML = '';
+            imgs.forEach((im, i) => thumbs.appendChild(thumbEl(im, i === _view, im.id === _rec.appliedId,
+                () => { _view = i; render(); },
+                (e) => { e.stopPropagation(); onDelete(im.id); })));
+        } else {
+            Array.from(thumbs.children).forEach((w, i) => w.querySelector('.ag-thumb')?.classList.toggle('selected', i === _view));
+        }
+        // Центрируем активную миниатюру скроллом самой ленты: scrollIntoView крутит и
+        // родителей вплоть до страницы — на телефоне от этого уезжал весь экран.
+        const active = thumbs.children[_view];
+        if (active) {
+            const tr = thumbs.getBoundingClientRect(), ar = active.getBoundingClientRect();
+            thumbs.scrollLeft += (ar.left + ar.width / 2) - (tr.left + tr.width / 2);
+        }
+    }
+    // Подменяем главную картинку только когда она уже декодирована — без пустого кадра.
+    function showMain(img, src) {
+        if (img.src === src) return;
+        const token = (showMain._t = {});
+        const pre = new Image();
+        const swap = () => { if (showMain._t === token) img.src = src; };
+        pre.src = src;
+        if (pre.decode) pre.decode().then(swap, swap); else { pre.onload = swap; pre.onerror = swap; }
     }
     function thumbEl(im, selected, applied, onClick, onDel) {
         const wrap = document.createElement('div');
         wrap.className = 'ag-thumb-wrap' + (applied ? ' applied' : '');
         const t = document.createElement('img');
         t.className = 'ag-thumb' + (selected ? ' selected' : '');
-        t.src = im.data; t.loading = 'lazy'; t.onclick = onClick;
+        t.src = im.thumb || im.data; t.decoding = 'async'; t.onclick = onClick;
         const del = document.createElement('button');
         del.className = 'ag-thumb-del'; del.title = 'Удалить'; del.innerHTML = '<i class="fa-solid fa-xmark"></i>'; del.onclick = onDel;
         if (applied) { const s = document.createElement('div'); s.className = 'ag-thumb-star'; s.innerHTML = '<i class="fa-solid fa-circle-check"></i>'; wrap.appendChild(s); }

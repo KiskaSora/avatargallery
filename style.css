@@ -55,9 +55,20 @@
     display: none;
     position: fixed;
     inset: 0;
+    /* У ST на <html> висит transform (фикс мерцания) → html становится containing block
+       для fixed, а на мобиле body { position: fixed } схлопывает высоту html в 0 —
+       inset: 0 даёт окно высотой 0. Поэтому высота задаётся явно, во вьюпорт-единицах. */
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
     align-items: center;
     justify-content: center;
     padding: 20px;
+    /* если панель выше экрана (мобила) — фон скроллится, верх окна всегда достижим */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* скролл внутри окна не должен протаскивать/дёргать страницу под ним */
+    overscroll-behavior: contain;
     background: color-mix(in srgb, var(--SmartThemeShadowColor, #000) 76%, transparent);
     backdrop-filter: blur(7px);
     font-family: var(--mainFontFamily, inherit);
@@ -74,6 +85,8 @@
     position: relative;
     width: min(460px, 94vw);
     max-height: 92vh;
+    max-height: 92svh; /* svh = видимая высота на мобиле (с учётом панели браузера) */
+    margin: auto; /* вместе со скроллом бэкдропа не даёт обрезать верх при переполнении */
     overflow-y: auto;
     overflow-x: hidden;
     display: flex;
@@ -355,21 +368,24 @@
 @media (max-width: 560px) {
     #ag-modal, #agm-modal { padding: 8px; }
     .ag-panel {
-        width: 100%; max-width: 100%; max-height: 94vh;
+        width: 100%; max-width: 100%;
+        max-height: calc(100vh - 16px);
+        max-height: calc(100svh - 16px);
         padding: 14px 13px calc(12px + env(safe-area-inset-bottom, 0px));
         gap: 12px;
     }
     .agm-panel { width: 100%; }
     .ag-head { gap: 8px; }
     .ag-stage { gap: 8px; }
-    .ag-figure { width: min(260px, 62vw); }
+    .ag-figure { width: min(240px, 56vw); }
     .ag-arrow { width: 36px; height: 36px; }
     /* кнопка действия — на всю ширину, счётчик над ней */
     .ag-bar { flex-wrap: wrap; }
     #ag-modal .ag-apply { flex: 1 1 100%; justify-content: center; }
     #ag-modal .ag-upload { width: 100%; justify-content: center; }
     .ag-thumb-wrap, .ag-thumb { width: 58px; height: 58px; }
-    .agm-list { max-height: 80vh; }
+    /* один общий скролл панели вместо вложенного скролла списка */
+    .agm-list { max-height: none; overflow-y: visible; }
     .agm-entity { padding: 11px 11px; }
 }
 
